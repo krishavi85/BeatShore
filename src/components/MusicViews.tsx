@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { BadgeCheck, BarChart3, ChevronRight, DollarSign, Globe2, Heart, MessageCircle, Play, Search, ShieldCheck, ShoppingBag, Upload, Users, X } from 'lucide-react';
 import type { BackendTrack as Track } from '../services/beatshoreBackend';
 
