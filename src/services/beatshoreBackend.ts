@@ -81,7 +81,8 @@ export async function submitAuthenticityScan(fileName: string, trackId?: string)
 export function subscribeToTrackChanges(onChange: () => void): () => void {
   if (!backendConfigured || !supabase) return () => undefined;
 
-  const channel = supabase
+  const client = supabase;
+  const channel = client
     .channel('beatshore-public-tracks')
     .on(
       'postgres_changes',
@@ -91,6 +92,6 @@ export function subscribeToTrackChanges(onChange: () => void): () => void {
     .subscribe();
 
   return () => {
-    void supabase.removeChannel(channel);
+    void client.removeChannel(channel);
   };
 }
