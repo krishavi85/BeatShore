@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BadgeCheck, Bell, Compass, Database, Download, Heart, Home, Library, ListMusic, LogIn, LogOut, Mic2, MoreHorizontal, Pause, Play, Search, Sparkles } from 'lucide-react';
 import { AuthModal } from './components/AuthModal';
 import { InnovationHub } from './components/InnovationHub';
@@ -6,10 +6,12 @@ import { ExploreView, HomeView, SearchView, Studio, TrackList, UploadModal } fro
 import { demoTracks } from './data/demoTracks';
 import { getCurrentUserEmail, listenForAuthChanges } from './services/auth';
 import { checkBackend, loadPublishedTracks, recordPlay, subscribeToTrackChanges, type BackendState, type BackendTrack as Track } from './services/beatshoreBackend';
+import { getSecureStreamUrl } from './services/streaming';
 
 type View = 'home' | 'explore' | 'library' | 'search' | 'innovation' | 'studio';
 
 export default function App() {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const [view, setView] = useState<View>('home');
   const [catalog, setCatalog] = useState<Track[]>(demoTracks);
   const [current, setCurrent] = useState<Track>(demoTracks[0]);
@@ -22,8 +24,17 @@ export default function App() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    let mounted = true;
+    const audio = new Audio();
+    audio.preload = 'none';
+    audio.onended = () => setPlaying(false);
+    audio.onpause = () => setPlaying(false);
+    audio.onplay = () => setPlaying(true);
+    audioRef.current = audio;
+    return () => { audio.pause(); audio.src = ''; };
+  }, []);
 
+  useEffect(() => {
+    let mounted = true;
     const refresh = async () => {
       try {
         const state = await checkBackend();
@@ -40,17 +51,11 @@ export default function App() {
         if (mounted) setBackendState('error');
       }
     };
-
     void refresh();
     void getCurrentUserEmail().then((email) => mounted && setUserEmail(email));
     const stopTracks = subscribeToTrackChanges(() => void refresh());
     const stopAuth = listenForAuthChanges(setUserEmail);
-
-    return () => {
-      mounted = false;
-      stopTracks();
-      stopAuth();
-    };
+    return () => { mounted = false; stopTracks(); stopAuth(); };
   }, []);
 
   const filtered = useMemo(
@@ -58,10 +63,27 @@ export default function App() {
     [catalog, query],
   );
 
-  const play = (track: Track) => {
+  const play = async (track: Track) => {
     setCurrent(track);
     setPlaying(true);
-    if (!track.id.startsWith('demo-')) void recordPlay(track.id);
+    if (track.id.startsWith('demo-')) return;
+    try {
+      const url = await getSecureStreamUrl(track.id);
+      if (url && audioRef.current) {
+        audioRef.current.src = url;
+        await audioRef.current.play();
+        void recordPlay(track.id);
+      }
+    } catch {
+      setPlaying(false);
+    }
+  };
+
+  const togglePlayback = () => {
+    const audio = audioRef.current;
+    if (current.id.startsWith('demo-')) { setPlaying((value) => !value); return; }
+    if (!audio?.src) { void play(current); return; }
+    if (audio.paused) void audio.play(); else audio.pause();
   };
 
   const toggleLike = (id: string) => setLiked((value) => value.includes(id) ? value.filter((item) => item !== id) : [...value, id]);
@@ -85,15 +107,7 @@ export default function App() {
     </aside>
 
     <main>
-      <header>
-        <div><h1>{titleFor(view)}</h1><p>Your sound. Your shore. Your success.</p></div>
-        <div className="header-actions">
-          <BackendBadge state={backendState} />
-          <button className="icon-btn"><Bell /></button>
-          <button className="account-btn" onClick={() => setShowAuth(true)}>{userEmail ? <LogOut /> : <LogIn />}<span>{userEmail ? 'Account' : 'Connect'}</span></button>
-        </div>
-      </header>
-
+      <header><div><h1>{titleFor(view)}</h1><p>Your sound. Your shore. Your success.</p></div><div className="header-actions"><BackendBadge state={backendState} /><button className="icon-btn"><Bell /></button><button className="account-btn" onClick={() => setShowAuth(true)}>{userEmail ? <LogOut /> : <LogIn />}<span>{userEmail ? 'Account' : 'Connect'}</span></button></div></header>
       {view === 'home' && <HomeView play={play} current={current} tracks={catalog} />}
       {view === 'explore' && <ExploreView play={play} tracks={catalog} />}
       {view === 'library' && <TrackList title="Your library" items={catalog.filter((track) => liked.includes(track.id))} play={play} liked={liked} toggleLike={toggleLike} />}
@@ -103,34 +117,20 @@ export default function App() {
     </main>
 
     <aside className="right-panel">
-      <h3>Now playing</h3>
-      <img className="now-cover" src={current.cover} alt="" />
+      <h3>Now playing</h3><img className="now-cover" src={current.cover} alt="" />
       <div className="now-title"><div><h2>{current.title}</h2><p>{current.artist}</p></div><button className="plain" onClick={() => toggleLike(current.id)}><Heart fill={liked.includes(current.id) ? 'currentColor' : 'none'} /></button></div>
-      <div className="quality-row"><span>Hi-Fi FLAC</span><span>Authenticity checked</span></div>
+      <div className="quality-row"><span>Hi-Fi FLAC</span><span>Protected stream</span></div>
       <div className="progress"><span style={{ width: playing ? '46%' : '22%' }} /></div><div className="times"><span>1:42</span><span>{current.duration}</span></div>
-      <div className="big-controls"><button>↶</button><button className="play-large" onClick={() => setPlaying(!playing)}>{playing ? <Pause /> : <Play />}</button><button>↷</button></div>
-      <h3>Up next</h3>{catalog.filter((track) => track.id !== current.id).slice(0, 3).map((track) => <div className="queue" key={track.id} onClick={() => play(track)}><img src={track.cover} alt="" /><div><b>{track.title}</b><span>{track.artist}</span></div><MoreHorizontal /></div>)}
+      <div className="big-controls"><button>↶</button><button className="play-large" onClick={togglePlayback}>{playing ? <Pause /> : <Play />}</button><button>↷</button></div>
+      <h3>Up next</h3>{catalog.filter((track) => track.id !== current.id).slice(0, 3).map((track) => <div className="queue" key={track.id} onClick={() => void play(track)}><img src={track.cover} alt="" /><div><b>{track.title}</b><span>{track.artist}</span></div><MoreHorizontal /></div>)}
     </aside>
 
-    <div className="bottom-player"><img src={current.cover} alt="" /><div className="meta"><b>{current.title}</b><span>{current.artist}</span></div><button className="plain" onClick={() => toggleLike(current.id)}><Heart fill={liked.includes(current.id) ? 'currentColor' : 'none'} /></button><div className="mini-controls"><button>◀</button><button className="mini-play" onClick={() => setPlaying(!playing)}>{playing ? <Pause /> : <Play />}</button><button>▶</button></div><div className="desktop-progress"><span style={{ width: playing ? '46%' : '22%' }} /></div><span>{current.duration}</span></div>
-
+    <div className="bottom-player"><img src={current.cover} alt="" /><div className="meta"><b>{current.title}</b><span>{current.artist}</span></div><button className="plain" onClick={() => toggleLike(current.id)}><Heart fill={liked.includes(current.id) ? 'currentColor' : 'none'} /></button><div className="mini-controls"><button>◀</button><button className="mini-play" onClick={togglePlayback}>{playing ? <Pause /> : <Play />}</button><button>▶</button></div><div className="desktop-progress"><span style={{ width: playing ? '46%' : '22%' }} /></div><span>{current.duration}</span></div>
     {showUpload && <UploadModal close={() => setShowUpload(false)} />}
     {showAuth && <AuthModal email={userEmail} close={() => setShowAuth(false)} />}
   </div>;
 }
 
-function Nav({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active?: boolean; onClick: () => void }) {
-  return <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}>{icon}<span>{label}</span></button>;
-}
-
-function titleFor(view: View) {
-  if (view === 'home') return 'Good morning, Shore!';
-  if (view === 'studio') return 'Creator Studio';
-  if (view === 'innovation') return 'ShoreAI Innovation Hub';
-  return view[0].toUpperCase() + view.slice(1);
-}
-
-function BackendBadge({ state }: { state: BackendState }) {
-  const label = state === 'connected' ? 'Backend live' : state === 'error' ? 'Backend error' : 'Demo mode';
-  return <div className={`backend-badge ${state}`}><Database />{label}</div>;
-}
+function Nav({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active?: boolean; onClick: () => void }) { return <button className={`nav-item ${active ? 'active' : ''}`} onClick={onClick}>{icon}<span>{label}</span></button>; }
+function titleFor(view: View) { if (view === 'home') return 'Good morning, Shore!'; if (view === 'studio') return 'Creator Studio'; if (view === 'innovation') return 'ShoreAI Innovation Hub'; return view[0].toUpperCase() + view.slice(1); }
+function BackendBadge({ state }: { state: BackendState }) { const label = state === 'connected' ? 'Backend live' : state === 'error' ? 'Backend error' : 'Demo mode'; return <div className={`backend-badge ${state}`}><Database />{label}</div>; }
