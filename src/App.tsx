@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BadgeCheck, Bell, Compass, Database, Download, Heart, Home, Library, ListMusic, LogIn, LogOut, Mic2, MoreHorizontal, Pause, Play, Search, Sparkles } from 'lucide-react';
 import { AuthModal } from './components/AuthModal';
 import { InnovationHub } from './components/InnovationHub';

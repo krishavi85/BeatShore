@@ -8,18 +8,44 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   install-and-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - name: Verify npm registry
-        run: npm ping --registry=https://registry.npmjs.org
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify npm registry access
+        run: npm ping
+
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
-      - name: Build BeatShore
-        run: npm run build
+        run: npm install --no-audit --no-fund --silent
+
+      - name: Type-check and build BeatShore
+        id: build
+        shell: bash
+        run: |
+          set +e
+          npm run build > build.log 2>&1
+          code=$?
+          cat build.log
+          exit $code
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: beatshore-build-log
+          path: build.log
+          if-no-files-found: error
+          retention-days: 7

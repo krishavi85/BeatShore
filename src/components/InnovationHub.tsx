@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { ChevronRight, Cloud, DollarSign, FileAudio, Globe2, Layers3, MessageCircle, Music2, Radio, ShieldCheck, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { submitAuthenticityScan, type BackendState, type BackendTrack } from '../services/beatshoreBackend';
 
@@ -45,7 +45,7 @@ export function InnovationHub({ backendState, userEmail, current, openAuth }: Pr
     <div className="innovation-grid">
       <article className="innovation-card feature-large">
         <div className="card-icon"><ShieldCheck /></div><h3>Authenticity Shield</h3>
-        <p>Queue multi-detector analysis for AI music, manipulated audio, cloned vocals and generated lyrics.</p>
+        <p>Queue multi-detector analysis for AI music, altered audio, synthetic vocals and generated lyrics.</p>
         <label className="file-picker"><FileAudio /><span>{fileName || 'Choose WAV, FLAC or MP3'}</span><input type="file" accept="audio/*" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? '')} /></label>
         <button className="primary-action" onClick={scan}><ShieldCheck /> Run authenticity scan</button>
         {scanStatus && <div className="operation-status">{scanStatus}</div>}
