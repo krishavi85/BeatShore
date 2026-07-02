@@ -4,6 +4,9 @@ on:
     branches:
       - main
       - network-ci
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
